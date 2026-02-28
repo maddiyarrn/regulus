@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { sql } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { parseTLEEpoch, extractOrbitalElements } from '@/lib/orbital';
 
 /**
@@ -22,6 +22,7 @@ import { parseTLEEpoch, extractOrbitalElements } from '@/lib/orbital';
  */
 export async function POST(request: Request) {
   try {
+    const sql = getDb();
     const body = await request.json();
     const { tleData } = body;
 
@@ -58,7 +59,6 @@ export async function POST(request: Request) {
           continue;
         }
 
-        // Upsert satellite
         const satellites = await sql`
           INSERT INTO satellites (
             norad_id, name, international_designator, 
@@ -90,7 +90,6 @@ export async function POST(request: Request) {
           continue;
         }
 
-        // Insert TLE data
         await sql`
           INSERT INTO tle_data (
             satellite_id, norad_id, epoch,
