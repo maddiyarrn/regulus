@@ -31,7 +31,9 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok) {
-        router.push('/dashboard');
+        // Use window.location for full page navigation so the cookie is sent
+        window.location.href = '/dashboard';
+        return;
       } else {
         setError(data.error || 'Login failed');
       }
