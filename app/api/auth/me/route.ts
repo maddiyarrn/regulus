@@ -6,7 +6,6 @@ export async function GET() {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get('token')?.value;
-    
     const user = await getSession(token);
     
     if (!user) {
