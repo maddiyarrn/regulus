@@ -1,15 +1,14 @@
 'use client';
 
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Stars, Sphere, Line, Html } from '@react-three/drei';
-import { useRef, useMemo } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
+import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
 interface OrbitalPosition {
   x: number;
   y: number;
   z: number;
-  time?: Date;
 }
 
 interface SatelliteData {
@@ -26,179 +25,188 @@ interface OrbitVisualizerProps {
   earthRadius?: number;
 }
 
+const SCALE = 0.001;
+
 function Earth({ radius = 6.371 }: { radius?: number }) {
+  const meshRef = useRef<THREE.Mesh>(null);
+
+  useFrame((_, delta) => {
+    if (meshRef.current) {
+      meshRef.current.rotation.y += delta * 0.05;
+    }
+  });
+
   return (
-    <Sphere args={[radius, 64, 64]}>
-      <meshStandardMaterial
-        color="#1e40af"
-        roughness={0.8}
-        metalness={0.2}
+    <mesh ref={meshRef}>
+      <sphereGeometry args={[radius, 64, 64]} />
+      <meshPhongMaterial
+        color="#1a6bbf"
+        emissive="#0a2a4a"
+        shininess={15}
+        specular="#4488cc"
       />
-    </Sphere>
+    </mesh>
   );
 }
 
-function SatelliteOrbit({ 
-  satellite, 
-  showLabel 
-}: { 
-  satellite: SatelliteData; 
-  showLabel: boolean;
-}) {
-  const scaleFactor = 0.001;
-  
-  const orbitPoints = useMemo(() => {
-    return satellite.orbitPath.map(
-      (pos) => new THREE.Vector3(
-        pos.x * scaleFactor, 
-        pos.y * scaleFactor, 
-        pos.z * scaleFactor
-      )
+function AtmosphereGlow({ radius = 6.371 }: { radius?: number }) {
+  return (
+    <mesh>
+      <sphereGeometry args={[radius * 1.02, 32, 32]} />
+      <meshPhongMaterial
+        color="#4fa3ff"
+        transparent
+        opacity={0.08}
+        side={THREE.BackSide}
+      />
+    </mesh>
+  );
+}
+
+function SatelliteOrbit({ satellite }: { satellite: SatelliteData }) {
+  const color = satellite.color || '#10b981';
+
+  const { orbitGeometry, satPosition } = useMemo(() => {
+    if (!satellite.orbitPath || satellite.orbitPath.length < 2) {
+      return { orbitGeometry: null, satPosition: new THREE.Vector3(0, 10, 0) };
+    }
+
+    const points = satellite.orbitPath.map(
+      (p) => new THREE.Vector3(p.x * SCALE, p.y * SCALE, p.z * SCALE)
     );
+
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const first = satellite.orbitPath[0];
+    const pos = new THREE.Vector3(
+      first.x * SCALE,
+      first.y * SCALE,
+      first.z * SCALE
+    );
+
+    return { orbitGeometry: geometry, satPosition: pos };
   }, [satellite.orbitPath]);
 
-  // Current position (first point in path)
-  const currentPos = satellite.orbitPath[0];
-  const scaledPos = useMemo(
-    () => new THREE.Vector3(
-      currentPos.x * scaleFactor,
-      currentPos.y * scaleFactor,
-      currentPos.z * scaleFactor
-    ),
-    [currentPos]
-  );
-
-  const color = satellite.color || '#10b981';
+  const colorObj = useMemo(() => new THREE.Color(color), [color]);
 
   return (
     <group>
-      {/* Orbit path line */}
-      <Line
-        points={orbitPoints}
-        color={color}
-        lineWidth={1.5}
-        transparent
-        opacity={0.6}
-      />
-      
-      {/* Satellite marker */}
-      <mesh position={scaledPos}>
-        <sphereGeometry args={[0.3, 16, 16]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} />
-      </mesh>
-
-      {/* Label */}
-      {showLabel && (
-        <Html position={scaledPos} distanceFactor={15} center>
-          <div className="bg-background/90 backdrop-blur-sm px-2 py-1 rounded-md border border-border text-xs whitespace-nowrap pointer-events-none">
-            <div className="font-semibold">{satellite.name}</div>
-            <div className="text-muted-foreground">NORAD: {satellite.norad_id}</div>
-          </div>
-        </Html>
+      {/* Orbit path */}
+      {orbitGeometry && (
+        <line>
+          <primitive object={orbitGeometry} attach="geometry" />
+          <lineBasicMaterial color={colorObj} transparent opacity={0.5} />
+        </line>
       )}
-    </group>
-  );
-}
-
-function CollisionWarning({ 
-  position, 
-  distance 
-}: { 
-  position: THREE.Vector3; 
-  distance: number;
-}) {
-  return (
-    <group position={position}>
-      <mesh>
-        <sphereGeometry args={[0.5, 16, 16]} />
-        <meshBasicMaterial color="#ef4444" transparent opacity={0.6} />
+      {/* Satellite dot */}
+      <mesh position={satPosition}>
+        <sphereGeometry args={[0.25, 8, 8]} />
+        <meshBasicMaterial color={colorObj} />
       </mesh>
-      <Html distanceFactor={15} center>
-        <div className="bg-destructive/90 text-destructive-foreground px-2 py-1 rounded-md text-xs whitespace-nowrap">
-          ⚠️ Collision Risk: {distance.toFixed(2)} km
-        </div>
-      </Html>
     </group>
   );
 }
 
-export function OrbitVisualizer({ 
-  satellites, 
-  showLabels = true,
-  earthRadius = 6.371 
+export function OrbitVisualizer({
+  satellites,
+  earthRadius = 6.371,
 }: OrbitVisualizerProps) {
   return (
-    <div className="w-full h-screen bg-background">
+    <div className="relative w-full" style={{ height: 'calc(100vh - 120px)' }}>
       <Canvas
-        camera={{ position: [50, 30, 50], fov: 60 }}
-        gl={{ antialias: true }}
+        camera={{ position: [0, 20, 50], fov: 55, near: 0.1, far: 10000 }}
+        gl={{ antialias: true, alpha: false }}
+        style={{ background: '#020817' }}
       >
-        {/* Lighting */}
-        <ambientLight intensity={0.3} />
-        <pointLight position={[100, 100, 100]} intensity={1.5} />
-        <pointLight position={[-100, -100, -100]} intensity={0.5} />
+        {/* Lights */}
+        <ambientLight intensity={0.4} />
+        <directionalLight position={[100, 50, 100]} intensity={1.2} />
+        <pointLight position={[-100, -50, -100]} intensity={0.3} color="#4466ff" />
 
-        {/* Stars background */}
-        <Stars radius={300} depth={50} count={5000} factor={4} fade speed={1} />
+        {/* Stars */}
+        <mesh>
+          <sphereGeometry args={[500, 32, 32]} />
+          <meshBasicMaterial color="#000008" side={THREE.BackSide} />
+        </mesh>
+        {/* Star field as points */}
+        <StarField />
 
         {/* Earth */}
         <Earth radius={earthRadius} />
+        <AtmosphereGlow radius={earthRadius} />
 
-        {/* Satellites and orbits */}
-        {satellites.map((satellite) => (
-          <SatelliteOrbit
-            key={satellite.id}
-            satellite={satellite}
-            showLabel={showLabels}
-          />
+        {/* Satellites */}
+        {satellites.map((sat) => (
+          <SatelliteOrbit key={sat.id} satellite={sat} />
         ))}
 
-        {/* Controls */}
         <OrbitControls
           enablePan
           enableZoom
           enableRotate
-          minDistance={10}
-          maxDistance={200}
+          minDistance={8}
+          maxDistance={300}
+          zoomSpeed={0.8}
         />
-
-        {/* Grid helper (optional) */}
-        {/* <gridHelper args={[100, 100]} /> */}
       </Canvas>
 
-      {/* Legend */}
-      <div className="absolute top-4 left-4 bg-background/90 backdrop-blur-sm p-4 rounded-lg border border-border max-w-sm">
-        <h3 className="font-semibold mb-2">Orbit Visualization</h3>
-        <p className="text-xs text-muted-foreground mb-2">
-          Data source: <span className="font-medium">Space-Track.org</span>
-        </p>
-        <div className="space-y-1 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-[#10b981]" />
-            <span>Satellite orbit path</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-[#2563eb]" />
-            <span>Earth (scale adjusted)</span>
-          </div>
-        </div>
-        <div className="mt-3 text-xs text-muted-foreground">
-          <p>Controls:</p>
-          <ul className="list-disc list-inside space-y-0.5 mt-1">
-            <li>Left click + drag: Rotate</li>
-            <li>Right click + drag: Pan</li>
-            <li>Scroll: Zoom</li>
-          </ul>
+      {/* Overlay UI */}
+      <div className="absolute top-3 left-3 bg-black/70 text-white text-xs px-3 py-2 rounded-lg border border-white/10 backdrop-blur-sm space-y-1">
+        <div className="font-semibold text-sm">Orbit Visualization</div>
+        <div className="text-white/60">Source: Space-Track.org</div>
+        <div className="mt-2 space-y-0.5 text-white/80">
+          <div>Drag — rotate</div>
+          <div>Scroll — zoom</div>
+          <div>Right drag — pan</div>
         </div>
       </div>
 
-      {/* Satellite count */}
-      <div className="absolute top-4 right-4 bg-background/90 backdrop-blur-sm p-3 rounded-lg border border-border">
-        <div className="text-sm">
-          <span className="text-muted-foreground">Tracking:</span>{' '}
-          <span className="font-semibold">{satellites.length}</span> satellites
-        </div>
+      <div className="absolute top-3 right-3 bg-black/70 text-white text-xs px-3 py-2 rounded-lg border border-white/10 backdrop-blur-sm">
+        <div className="text-white/60">Tracking</div>
+        <div className="text-lg font-bold">{satellites.length}</div>
+        <div className="text-white/60">satellites</div>
       </div>
+
+      {/* Satellite legend */}
+      {satellites.length > 0 && (
+        <div className="absolute bottom-3 left-3 bg-black/70 text-white text-xs px-3 py-2 rounded-lg border border-white/10 backdrop-blur-sm max-h-48 overflow-y-auto">
+          <div className="font-semibold mb-1">Satellites</div>
+          {satellites.slice(0, 20).map((sat) => (
+            <div key={sat.id} className="flex items-center gap-2 py-0.5">
+              <div
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ backgroundColor: sat.color || '#10b981' }}
+              />
+              <span className="truncate max-w-[150px]">{sat.name}</span>
+            </div>
+          ))}
+          {satellites.length > 20 && (
+            <div className="text-white/50 mt-1">+{satellites.length - 20} more</div>
+          )}
+        </div>
+      )}
     </div>
+  );
+}
+
+function StarField() {
+  const geometry = useMemo(() => {
+    const geo = new THREE.BufferGeometry();
+    const positions = new Float32Array(3000 * 3);
+    for (let i = 0; i < 3000; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = 400 + Math.random() * 50;
+      positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      positions[i * 3 + 2] = r * Math.cos(phi);
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    return geo;
+  }, []);
+
+  return (
+    <points geometry={geometry}>
+      <pointsMaterial color="#ffffff" size={0.5} sizeAttenuation />
+    </points>
   );
 }

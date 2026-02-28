@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertTriangle, Satellite, Upload, Brain, LogOut } from 'lucide-react';
+import { AlertTriangle, Satellite, Upload, Brain, LogOut, RefreshCw } from 'lucide-react';
+import { CSVUploader } from '@/components/csv-uploader';
 import { useRouter } from 'next/navigation';
 
 interface SatelliteData {
@@ -37,6 +38,8 @@ export default function DashboardPage() {
   const [collisions, setCollisions] = useState<CollisionRisk[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState('visualizer');
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [user, setUser] = useState<{ email: string; name: string | null } | null>(null);
 
   useEffect(() => {
@@ -49,7 +52,6 @@ export default function DashboardPage() {
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
-        // Load data only after successful auth
         loadSatellites();
         loadCollisions();
       } else {
@@ -122,6 +124,27 @@ export default function DashboardPage() {
       setCollisions(data.collisions || []);
     } catch (error) {
       console.error('[v0] Error loading collisions:', error);
+    }
+  }
+
+  async function handleSync() {
+    setSyncing(true);
+    setSyncMessage(null);
+    try {
+      const res = await fetch('/api/sync', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setSyncMessage(`Обновлено: ${data.stats.imported} спутников за ${data.stats.duration_ms}мс`);
+        loadSatellites();
+        loadCollisions();
+      } else {
+        setSyncMessage(`Ошибка: ${data.error}`);
+      }
+    } catch {
+      setSyncMessage('Ошибка подключения к Space-Track.org');
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMessage(null), 5000);
     }
   }
 
@@ -208,16 +231,28 @@ export default function DashboardPage() {
               Data from <span className="font-medium">Space-Track.org</span>
             </p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {syncMessage && (
+              <span className="text-sm text-muted-foreground">{syncMessage}</span>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSync}
+              disabled={syncing}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Обновление...' : 'Обновить с Space-Track'}
+            </Button>
             {user && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Logged in as</span>{' '}
+              <div className="text-sm hidden md:block">
+                <span className="text-muted-foreground">Вошли как</span>{' '}
                 <span className="font-medium">{user.email}</span>
               </div>
             )}
             <Button variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />
-              Logout
+              Выйти
             </Button>
           </div>
         </div>
@@ -355,59 +390,48 @@ export default function DashboardPage() {
         </TabsContent>
 
         <TabsContent value="import" className="container mx-auto px-4 py-6">
-          <Card className="max-w-2xl mx-auto">
-            <CardHeader>
-              <CardTitle>Import Space-Track Data</CardTitle>
-              <CardDescription>
-                Import TLE data, CDM files, or CSV from Space-Track.org
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-lg border border-border bg-muted p-4">
-                <h3 className="font-semibold mb-2">Data Source: Space-Track.org</h3>
+          <div className="max-w-2xl mx-auto space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Import Space-Track.org Data</CardTitle>
+                <CardDescription>
+                  Upload CSV or TLE files downloaded from{' '}
+                  <a
+                    href="https://www.space-track.org"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline font-medium"
+                  >
+                    Space-Track.org
+                  </a>
+                  . No file size limit — import all your satellites at once.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CSVUploader onImportComplete={() => { loadSatellites(); loadCollisions(); }} />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">How to get files from Space-Track.org</CardTitle>
+              </CardHeader>
+              <CardContent>
                 <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
-                  <li>Register for a free account at <a href="https://www.space-track.org" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">space-track.org</a></li>
-                  <li>Download TLE data in CSV or 3LE format</li>
-                  <li>Use the API endpoint below to import the data</li>
+                  <li>
+                    Register at{' '}
+                    <a href="https://www.space-track.org" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      space-track.org
+                    </a>
+                  </li>
+                  <li>Go to <strong>Queries &rarr; GP Data (Latest TLE)</strong></li>
+                  <li>Filter by NORAD_CAT_ID or object type</li>
+                  <li>Select format: <strong>CSV</strong></li>
+                  <li>Download and drag the file here</li>
                 </ol>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-semibold text-sm">API Endpoint</h4>
-                <code className="block bg-muted p-3 rounded text-xs">
-                  POST /api/import/space-track
-                </code>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-semibold text-sm">Example Request</h4>
-                <pre className="bg-muted p-3 rounded text-xs overflow-x-auto">
-{`{
-  "tleData": [
-    {
-      "norad_id": "25544",
-      "name": "ISS (ZARYA)",
-      "line1": "1 25544U 98067A   ...",
-      "line2": "2 25544  51.6461 ..."
-    }
-  ]
-}`}
-                </pre>
-              </div>
-
-              <div className="rounded-lg border border-yellow-200 bg-yellow-50 dark:bg-yellow-950 p-4">
-                <p className="text-sm text-yellow-900 dark:text-yellow-100">
-                  <strong>Note:</strong> You need to provide Space-Track data through the API. 
-                  Contact the system administrator to set up automated Space-Track data ingestion 
-                  or provide your Space-Track credentials.
-                </p>
-              </div>
-
-              <Button onClick={() => window.open('/api/import/space-track', '_blank')}>
-                View API Documentation
-              </Button>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
