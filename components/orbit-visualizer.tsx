@@ -30,8 +30,7 @@ function Earth({ radius = 6.371 }: { radius?: number }) {
   return (
     <Sphere args={[radius, 64, 64]}>
       <meshStandardMaterial
-        map={undefined}
-        color="#2563eb"
+        color="#1e40af"
         roughness={0.8}
         metalness={0.2}
       />
@@ -58,6 +57,7 @@ function SatelliteOrbit({
     );
   }, [satellite.orbitPath]);
 
+  // Current position (first point in path)
   const currentPos = satellite.orbitPath[0];
   const scaledPos = useMemo(
     () => new THREE.Vector3(

@@ -63,7 +63,7 @@ export default function DashboardPage() {
 
   async function loadSatellites() {
     try {
-      const res = await fetch('/api/satellites?limit=10');
+      const res = await fetch('/api/satellites?limit=100');
       
       if (!res.ok) {
         console.error('[v0] Failed to fetch satellites:', res.status);
@@ -79,8 +79,9 @@ export default function DashboardPage() {
         return;
       }
       
+      // Load orbit paths for each satellite
       const satellitesWithOrbits = await Promise.all(
-        data.satellites.slice(0, 5).map(async (sat: { id: number; name: string; norad_id: string }) => {
+        data.satellites.map(async (sat: { id: number; name: string; norad_id: string }) => {
           try {
             const orbitRes = await fetch(`/api/satellites/${sat.id}/orbit?duration=90&steps=100`);
             if (orbitRes.ok) {
