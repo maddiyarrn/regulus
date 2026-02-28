@@ -7,9 +7,9 @@ const _geist = Geist({ subsets: ['latin'] })
 const _geistMono = Geist_Mono({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.app',
+  title: 'Orbital Collision Monitoring System',
+  description: 'Advanced satellite tracking and collision prediction using AI-powered analysis of Space-Track.org data',
+  keywords: ['satellite tracking', 'collision detection', 'orbital mechanics', 'space-track', 'TLE', 'space situational awareness'],
 }
 
 export default function RootLayout({
