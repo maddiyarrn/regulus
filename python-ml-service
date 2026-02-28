@@ -1,0 +1,120 @@
+# Python LSTM ML Service
+
+This directory contains the Python-based LSTM machine learning service for enhanced satellite trajectory prediction.
+
+## Overview
+
+The LSTM service provides improved trajectory predictions beyond standard SGP4 propagation by learning from historical TLE data patterns from Space-Track.org.
+
+## Features
+
+- LSTM neural network for trajectory prediction
+- Confidence scoring for predictions
+- REST API compatible with the main Next.js app
+- Training on historical Space-Track TLE data
+
+## Requirements
+
+```
+flask>=2.3.0
+tensorflow>=2.13.0
+numpy>=1.24.0
+pandas>=2.0.0
+satellite-tle>=0.18.0
+requests>=2.31.0
+```
+
+## Setup
+
+1. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+2. Set environment variables:
+```bash
+export DATABASE_URL="your-neon-database-url"
+export FLASK_PORT=5000
+```
+
+3. Run the service:
+```bash
+python app.py
+```
+
+The service will start on http://localhost:5000
+
+## API Endpoints
+
+### POST /predict
+Generate trajectory prediction for a satellite
+
+**Request:**
+```json
+{
+  "satellite_id": 1,
+  "norad_id": "25544",
+  "tle_line1": "1 25544U 98067A   ...",
+  "tle_line2": "2 25544  51.6461 ...",
+  "prediction_horizon_hours": 24
+}
+```
+
+**Response:**
+```json
+{
+  "satellite_id": 1,
+  "prediction_horizon": 24,
+  "predicted_positions": [
+    {
+      "time": "2026-02-15T12:00:00Z",
+      "x": 6500.0,
+      "y": 1200.0,
+      "z": -300.0
+    }
+  ],
+  "confidence_score": 0.94,
+  "model_version": "lstm-v1.0",
+  "data_source": "Space-Track.org TLE"
+}
+```
+
+### GET /health
+Health check endpoint
+
+## Training the Model
+
+1. Collect historical TLE data from Space-Track.org
+2. Run training script:
+```bash
+python train_model.py --data historical_tle.csv --epochs 100
+```
+
+3. The trained model will be saved to `models/lstm_trajectory_v1.h5`
+
+## Integration with Main App
+
+The Next.js application calls this service through:
+- `POST /predict` endpoint for real-time predictions
+- Results are stored in the `trajectory_predictions` table
+- Confidence scores help validate prediction reliability
+
+## Model Architecture
+
+- Input: Historical TLE parameters (6 orbital elements)
+- LSTM layers: 2 layers with 128 units each
+- Output: Predicted ECI position coordinates (x, y, z)
+- Training data: Space-Track.org historical TLE sets
+
+## Future Enhancements
+
+- Ensemble models combining LSTM with SGP4
+- Real-time model updates with new Space-Track data
+- GPU acceleration for faster predictions
+- Multi-satellite batch predictions
+
+## Notes
+
+Contact the system administrator to set up and configure this service. The main application will function without it, but LSTM predictions will not be available.
+
+Data source: Space-Track.org
