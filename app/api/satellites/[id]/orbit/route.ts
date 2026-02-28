@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { sql } from '@/lib/db';
-import type { TLEData } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { generateOrbitPath } from '@/lib/orbital';
 
 /**
@@ -12,6 +11,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const sql = getDb();
     const { id } = await params;
     const satelliteId = parseInt(id);
     const { searchParams } = new URL(request.url);
@@ -25,7 +25,7 @@ export async function GET(
       );
     }
 
-    const tleData = await sql<TLEData[]>`
+    const tleData = await sql`
       SELECT * FROM tle_data 
       WHERE satellite_id = ${satelliteId}
       ORDER BY epoch DESC
