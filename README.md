@@ -4,6 +4,10 @@
 
 Ccылка на сайт (задеплоен на Vercel) --> **https://regulusai.vercel.app/**
 
+Ccылка на презентацию --> **https://www.canva.com/design/DAHCnGhdh7I/iVQaaHSJFao9U8nGBQmR8g/view?utm_content=DAHCnGhdh7I&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=h33622ad7e9**
+
+Ссылка на техническую документацию --> **https://docs.google.com/document/d/1I7QG8GwTM8CTGATilhbjEJ5zXzYq1VBGH3fHEPX1Ab0/edit?usp=sharing**
+
 ## О проекте
 
 Regulus Debris Guardian — это инструмент, который в реальном времени загружает актуальные орбитальные данные из официального источника **Space-Track.org**, прогнозирует траектории объектов, выявляет потенциальные столкновения и автоматически генерирует готовые рекомендации по манёврам уклонения с помощью ИИ (Mistral-7B).
