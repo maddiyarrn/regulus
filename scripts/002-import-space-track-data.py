@@ -1,4 +1,4 @@
-
+#!/usr/bin/env python3
 """
 Import Space-Track.org CSV data into Neon PostgreSQL database
 This script processes multiple CSV files and inserts satellite and TLE data
