@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { OrbitVisualizer } from '@/components/orbit-visualizer-wrapper';
+import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,10 +11,26 @@ import { CSVUploader } from '@/components/csv-uploader';
 import { AIAssistant } from '@/components/ai-assistant';
 import { useRouter } from 'next/navigation';
 
+const OrbitCanvas = dynamic(() => import('@/components/orbit-visualizer-v2').then(m => m.default), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center bg-[#060c12]">
+      <div className="text-center space-y-3">
+        <div className="animate-spin rounded-full h-10 w-10 border-2 border-sky-400 border-t-transparent mx-auto" />
+        <p className="text-sm text-slate-400 font-mono">Loading orbit visualization...</p>
+      </div>
+    </div>
+  ),
+});
+
 interface SatelliteData {
   id: number;
   name: string;
   norad_id: string;
+  object_type?: string;
+  country?: string;
+  tle_line1?: string;
+  tle_line2?: string;
   orbitPath: Array<{ x: number; y: number; z: number; time?: Date }>;
   color?: string;
 }
@@ -53,6 +69,7 @@ export default function DashboardPage() {
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
+        // Load data only after successful auth
         loadSatellites();
         loadCollisions();
       } else {
@@ -82,8 +99,9 @@ export default function DashboardPage() {
         return;
       }
       
+      // Load orbit paths for each satellite
       const satellitesWithOrbits = await Promise.all(
-        data.satellites.map(async (sat: { id: number; name: string; norad_id: string }) => {
+        data.satellites.map(async (sat: { id: number; name: string; norad_id: string; object_type?: string; country?: string; tle_line1?: string; tle_line2?: string }) => {
           try {
             const orbitRes = await fetch(`/api/satellites/${sat.id}/orbit?duration=90&steps=100`);
             if (orbitRes.ok) {
@@ -92,8 +110,11 @@ export default function DashboardPage() {
                 id: sat.id,
                 name: sat.name,
                 norad_id: sat.norad_id,
+                object_type: sat.object_type,
+                country: sat.country,
+                tle_line1: sat.tle_line1,
+                tle_line2: sat.tle_line2,
                 orbitPath: orbitData.orbitPath,
-                color: `hsl(${Math.random() * 360}, 70%, 50%)`,
               };
             }
           } catch (err) {
@@ -288,29 +309,37 @@ export default function DashboardPage() {
         </div>
 
         <TabsContent value="visualizer" className="m-0">
-          {satellites.length > 0 ? (
-            <OrbitVisualizer satellites={satellites.map((s, i) => ({
-              ...s,
-              orbitPath: s.orbitPath?.map((p: { x: number; y: number; z: number }) => [p.x, p.y, p.z] as [number, number, number]),
-            }))} />
-          ) : (
-            <div className="flex items-center justify-center h-[600px]">
-              <Card className="max-w-md">
-                <CardHeader>
-                  <CardTitle>No Satellite Data</CardTitle>
-                  <CardDescription>
-                    Please import TLE data from Space-Track.org to visualize orbits
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button onClick={() => setSelectedTab('import')}>
-                    <Upload className="w-4 h-4 mr-2" />
-                    Import Space-Track Data
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          )}
+          <div style={{ height: 'calc(100vh - 120px)' }} className="w-full relative">
+            {satellites.length > 0 ? (
+              <OrbitCanvas
+                satellites={satellites.map((s) => ({
+                  id: s.id,
+                  name: s.name,
+                  norad_id: s.norad_id,
+                  object_type: s.object_type,
+                  country: s.country,
+                  tle_line1: s.tle_line1,
+                  tle_line2: s.tle_line2,
+                  color: s.color,
+                  orbitPath: s.orbitPath?.map((p: { x: number; y: number; z: number }) => [p.x, p.y, p.z] as [number, number, number]),
+                }))}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-[#060c12]">
+                <div className="text-center space-y-4">
+                  <p className="text-slate-400 text-sm font-mono">
+                    {loading ? 'Loading satellite data...' : 'No satellite data found'}
+                  </p>
+                  {!loading && (
+                    <Button variant="outline" size="sm" onClick={() => setSelectedTab('import')}>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Import Space-Track Data
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="collisions" className="container mx-auto px-4 py-6">
@@ -345,18 +374,18 @@ export default function DashboardPage() {
             </div>
 
             {/* Algorithm explanation */}
-            <Card className="border-blue-500/30 bg-blue-950/20">
+            <Card className="border-sky-200 bg-sky-50 dark:border-sky-800 dark:bg-sky-950/40">
               <CardContent className="pt-4 pb-3 space-y-2 text-sm">
-                <p className="font-semibold text-blue-300">Как работает расчёт</p>
-                <p className="text-blue-200/80">
-                  Используется <strong>SGP4 пропагация</strong> (библиотека satellite.js) на основе
-                  {' '}<strong>TLE данных от Space-Track.org</strong>. Позиции каждого спутника вычисляются
+                <p className="font-semibold text-sky-900 dark:text-sky-200">Как работает расчёт</p>
+                <p className="text-sky-800 dark:text-sky-300">
+                  Используется <strong>SGP4 пропагация</strong> (библиотека satellite.js) на основе{' '}
+                  <strong>TLE данных от Space-Track.org</strong>. Позиции каждого спутника вычисляются
                   в 200 временных точках на горизонте 72 часа. Если минимальное расстояние между
                   двумя объектами падает ниже 10 км — событие фиксируется как потенциальное столкновение.
                 </p>
-                <p className="text-blue-300/60 text-xs">
+                <p className="text-sky-700 dark:text-sky-400 text-xs">
                   Точность напрямую зависит от свежести TLE. TLE старше 7 дней дают неточные позиции.
-                  Нажмите "Обновить с Space-Track" в шапке для получения актуальных данных.
+                  Нажмите "Обновить с Space-Track" в шапке для актуальных данных.
                   В БД сейчас {satellites.length} спутников —{' '}
                   {satellites.length < 10
                     ? 'слишком мало для полноценного анализа. Загрузите больше данных.'
