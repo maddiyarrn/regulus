@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 
-/**
- * GET /api/satellites - Get all satellites
- * Data sourced from Space-Track.org
- */
 export async function GET(request: Request) {
   try {
     const sql = getDb();
@@ -17,16 +13,32 @@ export async function GET(request: Request) {
 
     if (search) {
       satellites = await sql`
-        SELECT * FROM satellites
-        WHERE name ILIKE ${`%${search}%`} OR norad_id ILIKE ${`%${search}%`}
-        ORDER BY name
+        SELECT s.id, s.name, s.norad_id,
+          COALESCE(NULLIF(TRIM(s.object_type), ''), 'UNKNOWN') AS object_type,
+          COALESCE(NULLIF(TRIM(s.country), ''), 'Unknown') AS country,
+          s.launch_date, s.decay_date, s.is_active, s.international_designator,
+          t.tle_line1, t.tle_line2
+        FROM satellites s
+        LEFT JOIN LATERAL (
+          SELECT tle_line1, tle_line2 FROM tle_data WHERE satellite_id = s.id ORDER BY epoch DESC NULLS LAST LIMIT 1
+        ) t ON true
+        WHERE s.name ILIKE ${`%${search}%`} OR s.norad_id ILIKE ${`%${search}%`}
+        ORDER BY s.name
         LIMIT ${limit}
         OFFSET ${offset}
       `;
     } else {
       satellites = await sql`
-        SELECT * FROM satellites
-        ORDER BY name
+        SELECT s.id, s.name, s.norad_id,
+          COALESCE(NULLIF(TRIM(s.object_type), ''), 'UNKNOWN') AS object_type,
+          COALESCE(NULLIF(TRIM(s.country), ''), 'Unknown') AS country,
+          s.launch_date, s.decay_date, s.is_active, s.international_designator,
+          t.tle_line1, t.tle_line2
+        FROM satellites s
+        LEFT JOIN LATERAL (
+          SELECT tle_line1, tle_line2 FROM tle_data WHERE satellite_id = s.id ORDER BY epoch DESC NULLS LAST LIMIT 1
+        ) t ON true
+        ORDER BY s.name
         LIMIT ${limit}
         OFFSET ${offset}
       `;
