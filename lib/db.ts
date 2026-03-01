@@ -1,7 +1,7 @@
 import { neon } from '@neondatabase/serverless';
 
 export function getDb() {
-  return neon(process.env.DATABASE_URL!);
+  return neon(process.env.REGULUS_DATABASE_URL!);
 }
 
 export interface User {
